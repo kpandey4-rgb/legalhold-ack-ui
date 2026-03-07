@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Legal Hold Acknowledgement</title>
+</head>
+<body>
+  <h2>Legal Hold Acknowledgement</h2>
+  <p id="status">Checking authentication…</p>
+
+ 
+<script>
+async function ensureAuthenticated() {
+  const res = await fetch("/.auth/me");
+  const data = await res.json();
+
+  // ✅ Correct SWA check
+  if (!data.clientPrincipal) {
+    // ✅ Correct SWA login endpoint
+    window.location.href = "/.auth/login/aad";
+    return;
+  }
+
+  document.getElementById("status").innerText =
+    "Signed in as: " + data.clientPrincipal.userDetails;
+}
+
+// Run immediately
+ensureAuthenticated();
+</script>
+
+</body>
+</html>

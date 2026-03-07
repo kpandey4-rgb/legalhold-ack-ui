@@ -45,10 +45,19 @@
     (async () => {
       try {
         // 1) Read URL params
-        const params = new URLSearchParams(window.location.search);
-        const caseId = params.get("caseId");
-        const holdId = params.get("holdId");
-        const ackIdRaw = params.get("ackId"); // ACKID passed in URL
+        
+         const params = new URLSearchParams(window.location.search);
+
+            // Normalize keys to lowercase (handles CDN / browser quirks)
+         const normalized = {};
+            for (const [key, value] of params.entries()) {
+                 normalized[key.toLowerCase()] = value;
+                 }
+
+           const caseId = normalized["caseid"];
+           const holdId = normalized["holdid"];
+           const ackIdRaw = normalized["ackid"];
+
 
         if (!caseId || !holdId || !ackIdRaw) {
           setStatus("Invalid link. Missing caseId / holdId / ackId.", "warn");
@@ -122,3 +131,4 @@
 </body>
 </html>
 ``
+

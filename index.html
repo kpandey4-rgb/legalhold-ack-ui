@@ -1,33 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>Legal Hold Acknowledgement</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 40px; }
+    .box { max-width: 720px; margin: 0 auto; padding: 24px; border: 1px solid #ddd; border-radius: 10px; }
+    .ok { color: #107c10; }
+    .warn { color: #b22222; }
+    .muted { color: #666; font-size: 13px; }
+  </style>
 </head>
 <body>
-  <h2>Legal Hold Acknowledgement</h2>
-  <p id="status">Checking authentication…</p>
+  <div class="box">
+    <h2>Legal Hold Acknowledgement</h2>
+    <p id="status">Processing your acknowledgement…</p>
+    <p id="details" class="muted"></p>
+  </div>
 
- 
-<script>
-async function ensureAuthenticated() {
-  const res = await fetch("/.auth/me");
-  const data = await res.json();
+  <script>
+    const LOGIC_APP_URL = "https://legalholdacknowledgment-ddada5ftbyaxh4gq.canadacentral-01.azurewebsites.net:443/api/legalhold-ack-endpoint/triggers/When_an_HTTP_request_is_received/invoke?api-version=2022-05-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=0I0-lazOluiiw2r9lmycZcJPfK8og0oXPjwLYNWD8b4";
 
-  // ✅ Correct SWA check
-  if (!data.clientPrincipal) {
-    // ✅ Correct SWA login endpoint
-    window.location.href = "/.auth/login/aad";
-    return;
-  }
+    function setStatus(msg, cssClass) {
+      const el = document.getElementById("status");
+      el.className = cssClass || "";
+      el.innerText = msg;
+    }
 
-  document.getElementById("status").innerText =
-    "Signed in as: " + data.clientPrincipal.userDetails;
-}
+    function setDetails(msg) {
+      document.getElementById("details").innerText = msg || "";
+    }
 
-// Run immediately
-ensureAuthenticated();
-</script>
+    async function getUserUpnFromSwa() {
+      // Microsoft Learn: /.auth/me returns client principal including userDetails (often email/UPN) [3](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information)
+      const resp = await fetch("/.auth/me", { method: "GET" });
+      const data = await resp.json();
 
+      // For authenticated users, response includes clientPrincipal; unauth returns null [3](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information)
+      const cp = data && data.clientPrincipal ? data.clientPrincipal : null;
+      return cp ? cp.userDetails : null;
+    }
+
+    (async () => {
+      try {
+        // 1) Read URL params
+        const params = new URLSearchParams(window.location.search);
+        const caseId = params.get("caseId");
+        const holdId = params.get("holdId");
+        const ackIdRaw = params.get("ackId"); // ACKID passed in URL
+
+        if (!caseId || !holdId || !ackIdRaw) {
+          setStatus("Invalid link. Missing caseId / holdId / ackId.", "warn");
+          setDetails("Expected URL params: ?caseId=...&holdId=...&ackId=...");
+          return;
+        }
+
+        const ackId = Number(ackIdRaw);
+        if (!Number.isInteger(ackId) || ackId <= 0) {
+          setStatus("Invalid link. ackId must be a positive integer.", "warn");
+          setDetails("Received ackId=" + ackIdRaw);
+          return;
+        }
+
+        // 2) Get signed-in user from Static Web Apps auth endpoint [3](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information)
+        const userUpn = await getUserUpnFromSwa();
+        if (!userUpn) {
+          setStatus("You must be signed in to acknowledge this notice.", "warn");
+          setDetails("If you were not redirected to sign-in, refresh the page.");
+          return;
+        }
+
+        setDetails(`caseId=${caseId} | holdId=${holdId} | ackId=${ackId} | user=${userUpn}`);
+
+        // 3) POST to Logic App
+        const payload = {
+          ackId: ackId,
+          caseId: caseId,
+          holdId: holdId,
+          userUpn: userUpn,
+          action: "acknowledge",
+          clientTimeUtc: new Date().toISOString()
+        };
+
+        const response = await fetch(LOGIC_APP_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const resultText = await response.text();
+        let result;
+        try { result = JSON.parse(resultText); } catch { result = { raw: resultText }; }
+
+        // 4) Handle result
+        if (response.ok && result.status === "success") {
+          setStatus("Acknowledgement recorded successfully.", "ok");
+        } else if (response.ok && result.status === "alreadyAcknowledged") {
+          setStatus("This notice was already acknowledged.", "ok");
+        } else if (response.ok && result.status === "notFound") {
+          setStatus("No matching record found for this acknowledgement link.", "warn");
+        } else {
+          setStatus("Error processing acknowledgement.", "warn");
+          setDetails("Response: " + resultText);
+        }
+
+        // 5) Attempt to close tab
+        // Note: Some browsers block window.close() unless opened by script; we provide fallback text.
+        setTimeout(() => {
+          window.close();
+          setDetails((document.getElementById("details").innerText || "") + "\nYou may now close this window.");
+        }, 1500);
+
+      } catch (e) {
+        console.error(e);
+        setStatus("Unexpected error processing acknowledgement.", "warn");
+        setDetails(String(e));
+      }
+    })();
+  </script>
 </body>
 </html>
+``

@@ -44,19 +44,17 @@
 
     (async () => {
       try {
-        // 1) Read URL params
+       
         
-         const params = new URLSearchParams(window.location.search);
+                // 1) Read values from PATH (Solution 2)
+                // URL format: /ack/{ackId}/{caseId}/{holdId}
+               const pathParts = window.location.pathname.split("/").filter(Boolean);
 
-            // Normalize keys to lowercase (handles CDN / browser quirks)
-         const normalized = {};
-            for (const [key, value] of params.entries()) {
-                 normalized[key.toLowerCase()] = value;
-                 }
-
-           const caseId = normalized["caseid"];
-           const holdId = normalized["holdid"];
-           const ackIdRaw = normalized["ackid"];
+               // Example: ["ack","1","d84a...","c30a..."]
+              const isAckRoute = (pathParts[0] || "").toLowerCase() === "ack";
+              const ackIdRaw = isAckRoute ? pathParts[1] : null;
+              const caseId   = isAckRoute ? pathParts[2] : null;
+              const holdId   = isAckRoute ? pathParts[3] : null;
 
 
         if (!caseId || !holdId || !ackIdRaw) {
@@ -131,4 +129,5 @@
 </body>
 </html>
 ``
+
 

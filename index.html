@@ -3,6 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <title>Legal Hold Acknowledgement</title>
+
+  <script>
+(function unwrapSafeLinks() {
+  const params = new URLSearchParams(window.location.search);
+
+  // If opened via Outlook Safe Links, unwrap original URL
+  if (params.has("url")) {
+    try {
+      const originalUrl = decodeURIComponent(params.get("url"));
+
+      // Redirect only once to avoid loops
+      if (!window.location.href.startsWith(originalUrl)) {
+        window.location.replace(originalUrl);
+      }
+    } catch (e) {
+      console.error("Failed to unwrap Safe Links URL", e);
+    }
+  }
+})();
+</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body { font-family: Segoe UI, Arial, sans-serif; margin: 40px; }
@@ -129,5 +149,6 @@
 </body>
 </html>
 ``
+
 
 
